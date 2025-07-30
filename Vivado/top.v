@@ -28,6 +28,11 @@ module top(
     input btnL,
     input btnR,
     input btnD,
+    output[3:0] vgaRed,
+    output[3:0] vgaGreen,
+    output[3:0] vgaBlue,
+    output Hsync,
+    output Vsync,
     output TxD
 );
 
@@ -59,9 +64,6 @@ module top(
 
     reg[23:0] last_val;
     
-    always @(posedge clk) begin
-        last_val <= ap_return;
-    end
 
     assign led[3:0] = last_val[7:4];
     assign led[7:4] = last_val[15:12];
@@ -70,10 +72,22 @@ module top(
     wire busy;
     wire start;
     reg prev_done;
+    reg start_delayed;
     initial prev_done = 0;
     
     always @(posedge clk)
         prev_done <= ap_done;
+    always @(posedge clk)
+        start_delayed <= start;
+    
+    reg[7:0] prev_x, prev_y;
+    always @(posedge clk) begin
+        if (start) begin
+            prev_x <= x;
+            prev_y <= y;
+            last_val <= ap_return;
+        end
+    end
     
     assign start = ap_done & (~prev_done);
     
@@ -103,6 +117,21 @@ module top(
         .busy(busy),
         .TxD(TxD)
     );
+    
+    framebuffer_vga_dual vga (
+        .clk (clk),
+        .rst_btn (ap_rst),
+        .wr_x    (prev_x),
+        .wr_y    (prev_y),
+        .wr_pix  ({last_val[7:5], last_val[15:13], last_val[23:22]}),
+        .wr_we   (start_delayed),
+        .vga_r   (vgaRed),
+        .vga_g   (vgaGreen),
+        .vga_b   (vgaBlue),
+        .vga_hs  (Hsync),
+        .vga_vs  (Vsync)
+    );
+
 
     trace_path_0 main_fn (
       .ap_clk(clk),        // input wire ap_clk
